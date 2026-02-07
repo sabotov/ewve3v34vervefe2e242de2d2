@@ -146,48 +146,14 @@ public class AbilityManager : MonoBehaviour
         }
     }
 
-    public void ApplyDamageModifiers(DamageContext ctx, bool allowMiss, bool runTriggers)
+    public void ProcessBeforeDamageTriggers(DamageContext ctx)
     {
         if (ctx == null) return;
 
-        if (runTriggers)
-        {
-            ProcessTrigger(TriggerType.BeforeAttack, ctx.attacker, ctx.target, ctx);
-            ProcessTrigger(TriggerType.OwnAttack, ctx.attacker, ctx.target, ctx);
-            ProcessTrigger(TriggerType.AllyAttack, ctx.attacker, ctx.target, ctx);
-            ProcessTrigger(TriggerType.EnemyAttack, ctx.attacker, ctx.target, ctx);
-        }
-
-        if (allowMiss)
-        {
-            if (HasStatus(ctx.attacker, AbilityType.Miss)
-                || (ctx.attackType == AttackType.Ranged && HasAbility(ctx.target, AbilityType.Evasion, out _))
-                || (ctx.attackType == AttackType.Melee && HasAbility(ctx.target, AbilityType.Flight, out _) && !HasAbility(ctx.attacker, AbilityType.Flight, out _)))
-            {
-                ctx.isMiss = true;
-            }
-
-            if (HasAbility(ctx.attacker, AbilityType.Accuracy, out _))
-            {
-                ctx.isMiss = false;
-            }
-        }
-
-        if (HasAbility(ctx.target, AbilityType.Invulnerability, out _))
-        {
-            ctx.damage = 0;
-            ConsumeInvulnerability(ctx.target);
-        }
-
-        if (HasAbility(ctx.target, AbilityType.Resistance, out var res))
-        {
-            ctx.damage = Mathf.RoundToInt(ctx.damage * (100 - res) / 100f);
-        }
-
-        if (HasAbility(ctx.target, AbilityType.Block, out var block))
-        {
-            ctx.damage = Mathf.Max(0, ctx.damage - block);
-        }
+        ProcessTrigger(TriggerType.BeforeAttack, ctx.attacker, ctx.target, ctx);
+        ProcessTrigger(TriggerType.OwnAttack, ctx.attacker, ctx.target, ctx);
+        ProcessTrigger(TriggerType.AllyAttack, ctx.attacker, ctx.target, ctx);
+        ProcessTrigger(TriggerType.EnemyAttack, ctx.attacker, ctx.target, ctx);
     }
 
     private void HandleDamageApplied(DamageReport report)
@@ -275,7 +241,7 @@ public class AbilityManager : MonoBehaviour
         }));
     }
 
-    private void ConsumeInvulnerability(GameObject target)
+    public void ConsumeInvulnerability(GameObject target)
     {
         if (target == null || battleGame == null) return;
         Ability ab;
@@ -647,16 +613,27 @@ public class AbilityManager : MonoBehaviour
         if (battleGame == null) return false;
         
         if (HasStatus(obj, AbilityType.Silence)) return false;
-        if (battleGame.cardDataMap.TryGetValue(obj, out var d) &&
-            d.abilities.FirstOrDefault(a => a.type == type) is { } ab)
+        if (TryGetEntityAbilities(obj, out var abilities) &&
+            abilities.FirstOrDefault(a => a.type == type) is { } ab)
         {
             value = ab.value;
             return true;
         }
-        else if (battleGame.warlordDataMap.TryGetValue(obj, out var wd) &&
-                 wd.abilities.FirstOrDefault(a => a.type == type) is { } abw)
+        return false;
+    }
+
+    private bool TryGetEntityAbilities(GameObject obj, out List<Ability> abilities)
+    {
+        abilities = null;
+        if (battleGame == null || obj == null) return false;
+        if (battleGame.cardDataMap.TryGetValue(obj, out var card))
         {
-            value = abw.value;
+            abilities = card.abilities;
+            return true;
+        }
+        if (battleGame.warlordDataMap.TryGetValue(obj, out var warlord))
+        {
+            abilities = warlord.abilities;
             return true;
         }
         return false;

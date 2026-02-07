@@ -50,9 +50,49 @@ public class CombatResolver : MonoBehaviour, ICombatResolver
             isMiss = false
         };
 
-        bool allowMiss = request.source == DamageSource.Attack;
-        bool runTriggers = request.source == DamageSource.Attack;
-        abilityManager.ApplyDamageModifiers(ctx, allowMiss, runTriggers);
+        bool isAttackSource = request.source == DamageSource.Attack;
+        if (isAttackSource)
+        {
+            abilityManager.ProcessBeforeDamageTriggers(ctx);
+        }
+
+        if (isAttackSource)
+        {
+            if (abilityManager.HasStatus(ctx.attacker, AbilityType.Miss)
+                || (ctx.attackType == AttackType.Ranged && abilityManager.HasAbility(ctx.target, AbilityType.Evasion, out _))
+                || (ctx.attackType == AttackType.Melee && abilityManager.HasAbility(ctx.target, AbilityType.Flight, out _) && !abilityManager.HasAbility(ctx.attacker, AbilityType.Flight, out _)))
+            {
+                ctx.isMiss = true;
+            }
+
+            if (abilityManager.HasAbility(ctx.attacker, AbilityType.Accuracy, out _))
+            {
+                ctx.isMiss = false;
+            }
+        }
+
+        if (ctx.isMiss)
+        {
+            var missResult = new DamageResult(0, true);
+            CombatRequests.DamageResolved?.Invoke(new DamageReport(request, missResult));
+            return missResult;
+        }
+
+        if (abilityManager.HasAbility(ctx.target, AbilityType.Invulnerability, out _))
+        {
+            ctx.damage = 0;
+            abilityManager.ConsumeInvulnerability(ctx.target);
+        }
+
+        if (abilityManager.HasAbility(ctx.target, AbilityType.Resistance, out var res))
+        {
+            ctx.damage = Mathf.RoundToInt(ctx.damage * (100 - res) / 100f);
+        }
+
+        if (abilityManager.HasAbility(ctx.target, AbilityType.Block, out var block))
+        {
+            ctx.damage = Mathf.Max(0, ctx.damage - block);
+        }
 
         var result = new DamageResult(ctx.damage, ctx.isMiss);
         CombatRequests.DamageResolved?.Invoke(new DamageReport(request, result));
