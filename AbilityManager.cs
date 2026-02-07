@@ -648,6 +648,15 @@ public class AbilityManager : MonoBehaviour
         d.statuses.Add(new Status { type = type, turns = turns, value = value, source = source });
     }
 
+    public void AddStatus(GameObject obj, AbilityType type, int turns, int value, GameObject source = null)
+    {
+        if (battleGame == null || !battleGame.cardDataMap.TryGetValue(obj, out var d) || HasAbility(obj, AbilityType.Immunity, out _))
+            return;
+            
+        if (type == AbilityType.Miss && HasAbility(obj, AbilityType.Accuracy, out _)) return;
+        d.statuses.Add(new Status { type = type, turns = turns, value = value, source = source });
+    }
+
     public bool HasStatus(GameObject obj, AbilityType type)
     {
         return battleGame != null && battleGame.cardDataMap.TryGetValue(obj, out var d) && d.statuses.Any(s => s.type == type);
